@@ -256,7 +256,6 @@ namespace RCT
             { 1607, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
             { 1608, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
             { 1611, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
-            { 1611, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
             { 1612, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
             { 1978, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
             { 1980, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
