@@ -105,6 +105,14 @@ namespace RCT
                 return;
             }
 
+            if(blockChain.Count > 0)
+            {
+                rctMode = true;
+                PlayerManager.Instance.messenger.Log("RCT: On", 1f);
+                central.selection.DeselectAllBlocks(false, "");
+                return;
+            }
+
             if (central.selection.list.Count == 1)
             {
                 if (central.selection.list[0].blockID == 1329)
