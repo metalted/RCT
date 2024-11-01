@@ -22,7 +22,7 @@ namespace RCT
         private Rect windowRect = new Rect(20, 20, 250, 300);
         public ConfigEntry<KeyCode> rctButton;
         public List<RCTBlock> blockChain = new List<RCTBlock>();
-        public bool visualizeConnectionPoints = false;
+        public bool visualizeConnectionPoints = true;
 
         public void Awake()
         {
@@ -207,9 +207,11 @@ namespace RCT
             }
 
             GameObject block = blockProperties.gameObject;
+            
             Utils.RemoveUnwantedComponents(block);
             RCTBlock rct = block.AddComponent<RCTBlock>();
             rct.blockID = id;
+            rct.connectionPoints = connections;
 
             GameObject start = visualizeConnectionPoints ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("Start");
             start.transform.parent = block.transform;
@@ -239,11 +241,39 @@ namespace RCT
                 return;
             }
 
-            //Adjust rotation
-            last.transform.rotation = penultimate.end.rotation * Quaternion.Inverse(last.start.localRotation);
-            //Adjust position
-            Vector3 offset = last.transform.rotation * last.start.localPosition;
-            last.transform.localPosition = penultimate.end.position - offset;
+            if (last.isFlipped && last.isReversed && last.connectionPoints.isBend)
+            {
+                // Use last.end's local rotation and position
+                Quaternion adjustedLocalRotation = last.start.localRotation;
+                Vector3 adjustedLocalPosition = last.start.localPosition;
+
+                // Adjust for reversing first (rotate 180 degrees around Y-axis)
+                adjustedLocalRotation *= Quaternion.Euler(0, 180f, 0);
+
+                // Adjust for flipping after reversing (negative scale on X-axis)
+                adjustedLocalRotation = new Quaternion(
+                    -adjustedLocalRotation.x,
+                    adjustedLocalRotation.y,
+                    -adjustedLocalRotation.z,
+                    adjustedLocalRotation.w
+                );
+                adjustedLocalPosition.x = -adjustedLocalPosition.x;
+
+                // Calculate the new rotation
+                last.transform.rotation = penultimate.end.rotation * Quaternion.Inverse(adjustedLocalRotation);
+
+                // Calculate the new position
+                Vector3 offset = last.transform.rotation * adjustedLocalPosition;
+                last.transform.position = penultimate.end.position - offset;
+            }
+            else
+            {
+                //Adjust rotation
+                last.transform.rotation = penultimate.end.rotation * Quaternion.Inverse(last.start.localRotation);
+                //Adjust position
+                Vector3 offset = last.transform.rotation * last.start.localPosition;
+                last.transform.localPosition = penultimate.end.position - offset;
+            }            
         }
 
         public RCTBlock GetLastBlock()
@@ -325,6 +355,8 @@ namespace RCT
             flipped.x *= -1;
             last.transform.localScale = flipped;
 
+            last.isFlipped = !last.isFlipped;
+
             AlignLastBlock();
         }
 
@@ -353,6 +385,8 @@ namespace RCT
             //Rotate the endpoints so the look the other way
             last.start.Rotate(0, 180, 0);
             last.end.Rotate(0, 180, 0);
+
+            last.isReversed = !last.isReversed;
 
             AlignLastBlock();
         }

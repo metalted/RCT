@@ -7,7 +7,7 @@ namespace RCT
         public static void RemoveUnwantedComponents(GameObject target)
         {
             // Array of types to keep
-            System.Type[] typesToKeep = { typeof(Transform), typeof(MeshFilter), typeof(MeshRenderer) };
+            System.Type[] typesToKeep = { typeof(Transform), typeof(MeshFilter), typeof(MeshRenderer), typeof(RectTransform) };
 
             // Get all components in target and its children
             foreach (Transform child in target.GetComponentsInChildren<Transform>(true))

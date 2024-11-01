@@ -13,5 +13,8 @@ namespace RCT
         public BlockConnectionPoints connectionPoints;
         public Transform start;
         public Transform end;
+
+        public bool isReversed = false;
+        public bool isFlipped = false;
     }
 }
