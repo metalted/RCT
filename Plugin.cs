@@ -12,17 +12,31 @@ namespace RCT
     {
         public const string pluginGUID = "com.metalted.zeepkist.rct";
         public const string pluginName = "RCT";
-        public const string pluginVersion = "1.1";
+        public const string pluginVersion = "1.3";
         public LEV_LevelEditorCentral central;
 
         public static Plugin Instance;
+
+        //RCT
         public Material rctMaterial;
         public bool rctMode = false;
         public Vector3 startingPosition = Vector3.zero;
-        private Rect windowRect = new Rect(20, 20, 250, 300);
-        public ConfigEntry<KeyCode> rctButton;
+        public Quaternion startingRotation = Quaternion.identity;
         public List<RCTBlock> blockChain = new List<RCTBlock>();
-        public bool visualizeConnectionPoints = true;
+
+        //UI
+        private Rect windowRect = new Rect(20, 20, 250, 300);
+
+        //Settings
+        public ConfigEntry<KeyCode> rctButton;
+        public ConfigEntry<KeyCode> deleteChainButton;
+        public ConfigEntry<KeyCode> solidifyChainButton;
+        public ConfigEntry<KeyCode> undoButton;
+        public ConfigEntry<KeyCode> flipButton;
+        public ConfigEntry<KeyCode> reverseButton;
+        public ConfigEntry<int> rctBlockID;
+        public ConfigEntry<bool> visualizeConnectPoints;
+        public ConfigEntry<bool> deleteOnSolidify;
 
         public void Awake()
         {
@@ -30,7 +44,19 @@ namespace RCT
             harmony.PatchAll();
 
             Instance = this;
-            rctButton = Config.Bind("Controls", "Toggle RCT Mode", KeyCode.Keypad0, "Toggle RCT Mode");
+
+            //Controls
+            rctButton = Config.Bind("Controls", "Toggle RCT Mode", KeyCode.Keypad0, "Toggle RCT Mode, select a single block with the configured ID first.");
+            deleteChainButton = Config.Bind("Controls", "Delete Chain", KeyCode.None, "Delete all the RCT blocks in the chain, clearing the design. Deleting is final.");
+            solidifyChainButton = Config.Bind("Controls", "Solidify Chain", KeyCode.None, "Turns the design into actual blocks.");
+            undoButton = Config.Bind("Controls", "Undo", KeyCode.None, "Remove the last placed rct block from the design.");
+            flipButton = Config.Bind("Controls", "Flip", KeyCode.None, "Flip the last rct block connected.");
+            reverseButton = Config.Bind("Controls", "Reverse", KeyCode.None, "Reverse the last rct block connected.");
+
+            //Preferences
+            rctBlockID = Config.Bind("Preferences", "RCT Block ID", 69, "The block that will be used to configure the start position and rotation of the chain.");
+            visualizeConnectPoints = Config.Bind("Preferences", "Show connection points", false, "Visualizes the connection points configured in the plugin. Mostly used for debugging purposes.");
+            deleteOnSolidify = Config.Bind("Preferences", "Delete on Solidify", false, "When solidifying a chain, also clear the design");
         }
 
         public void Update()
@@ -48,6 +74,31 @@ namespace RCT
             if (rctMode)
             {
                 RotateLastBlockWithScroll();
+
+                if(Input.GetKeyDown(deleteChainButton.Value))
+                {
+                    DeleteChain();
+                }
+
+                if(Input.GetKeyDown(solidifyChainButton.Value))
+                {
+                    SolidifyChain();
+                }
+
+                if(Input.GetKeyDown(undoButton.Value))
+                {
+                    Undo();
+                }
+
+                if (Input.GetKeyDown(flipButton.Value))
+                {
+                    FlipLastBlock();
+                }
+
+                if(Input.GetKeyDown(reverseButton.Value))
+                {
+                    ReverseLastBlock();
+                }
             }
         }
 
@@ -65,27 +116,27 @@ namespace RCT
         {
             GUILayout.BeginVertical();
 
-            if (GUILayout.Button("Delete Chain"))
+            if (GUILayout.Button("Delete Chain" + ( deleteChainButton.Value != KeyCode.None ? (" (" + deleteChainButton.Value.ToString() + ")") : "")))
             {
                 DeleteChain();
             }
 
-            if (GUILayout.Button("Solidify Chain"))
+            if (GUILayout.Button("Solidify Chain" + (solidifyChainButton.Value != KeyCode.None ? (" (" + solidifyChainButton.Value.ToString() + ")") : "")))
             {
                 SolidifyChain();
             }
 
-            if (GUILayout.Button("Undo"))
+            if (GUILayout.Button("Undo" + (undoButton.Value != KeyCode.None ? (" (" + undoButton.Value.ToString() + ")") : "")))
             {
                 Undo();
             }
 
-            if (GUILayout.Button("Flip"))
+            if (GUILayout.Button("Flip" + (flipButton.Value != KeyCode.None ? (" (" + flipButton.Value.ToString() + ")") : "")))
             {
                 FlipLastBlock();
             }
 
-            if (GUILayout.Button("Reverse"))
+            if (GUILayout.Button("Reverse" + (reverseButton.Value != KeyCode.None ? (" (" + reverseButton.Value.ToString() + ")") : "")))
             {
                 ReverseLastBlock();
             }
@@ -101,6 +152,15 @@ namespace RCT
             if (rctMode)
             {
                 rctMode = false;
+
+                if(blockChain.Count > 0)
+                {
+                    foreach(RCTBlock b in blockChain)
+                    {
+                        b.gameObject.SetActive(false);
+                    }
+                }
+
                 PlayerManager.Instance.messenger.Log("RCT: Off", 1f);
                 return;
             }
@@ -108,6 +168,12 @@ namespace RCT
             if(blockChain.Count > 0)
             {
                 rctMode = true;
+
+                foreach (RCTBlock b in blockChain)
+                {
+                    b.gameObject.SetActive(true);
+                }
+
                 PlayerManager.Instance.messenger.Log("RCT: On", 1f);
                 central.selection.DeselectAllBlocks(false, "");
                 return;
@@ -115,21 +181,23 @@ namespace RCT
 
             if (central.selection.list.Count == 1)
             {
-                if (central.selection.list[0].blockID == 1329)
+                if (central.selection.list[0].blockID == rctBlockID.Value)
                 {
                     rctMode = true;
                     startingPosition = central.selection.list[0].transform.position;
+                    startingRotation = central.selection.list[0].transform.rotation;
+
                     PlayerManager.Instance.messenger.Log("RCT: On", 1f);
                     central.selection.DeselectAllBlocks(false, "");                                
                 }
                 else
                 {
-                    PlayerManager.Instance.messenger.Log("Select a single pivot as start position and press [" + ((KeyCode)rctButton.Value).ToString() + "] to enable RCT mode!", 3f);
+                    PlayerManager.Instance.messenger.Log("Select the configured RCT Block and press [" + ((KeyCode)rctButton.Value).ToString() + "] to enable RCT mode!", 3f);
                 }
             }
             else
             {
-                PlayerManager.Instance.messenger.Log("Select a single pivot as start position and press [" + ((KeyCode)rctButton.Value).ToString() + "] to enable RCT mode!", 3f);
+                PlayerManager.Instance.messenger.Log("Select the configured RCT Block and press [" + ((KeyCode)rctButton.Value).ToString() + "] to enable RCT mode!", 3f);
             }
         }
 
@@ -153,7 +221,7 @@ namespace RCT
             //Check if block is supported.
             if (!ConnectionData.Supports(blockID))
             {
-                PlayerManager.Instance.messenger.Log("Unsupported :(", 1f);
+                PlayerManager.Instance.messenger.Log("Block not supported by RCT.", 1f);
                 return;
             }
 
@@ -168,6 +236,7 @@ namespace RCT
             if(blockChain.Count == 1)
             {
                 GetLastBlock().transform.position = startingPosition;
+                GetLastBlock().transform.rotation = startingRotation;
             }
 
             if (blockChain.Count > 1)
@@ -213,14 +282,14 @@ namespace RCT
             rct.blockID = id;
             rct.connectionPoints = connections;
 
-            GameObject start = visualizeConnectionPoints ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("Start");
+            GameObject start = visualizeConnectPoints.Value ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("Start");
             start.transform.parent = block.transform;
             start.transform.localPosition = connections.localStartPosition;
             start.transform.localEulerAngles = connections.localStartEuler;
             start.gameObject.name = "Start";
             rct.start = start.transform;
 
-            GameObject end = visualizeConnectionPoints ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("End");
+            GameObject end = visualizeConnectPoints.Value ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("End");
             end.transform.parent = block.transform;
             end.transform.localPosition = connections.localEndPosition;
             end.transform.localEulerAngles = connections.localEndEuler;
@@ -241,7 +310,7 @@ namespace RCT
                 return;
             }
 
-            if (last.isFlipped && last.isReversed && last.connectionPoints.isBend)
+            if (last.isFlipped && last.isReversed && last.connectionPoints.connectionType == ConnectionData.ConnectionType.Curve)
             {
                 // Use last.end's local rotation and position
                 Quaternion adjustedLocalRotation = last.start.localRotation;
@@ -249,6 +318,31 @@ namespace RCT
 
                 // Adjust for reversing first (rotate 180 degrees around Y-axis)
                 adjustedLocalRotation *= Quaternion.Euler(0, 180f, 0);
+
+                // Adjust for flipping after reversing (negative scale on X-axis)
+                adjustedLocalRotation = new Quaternion(
+                    -adjustedLocalRotation.x,
+                    adjustedLocalRotation.y,
+                    -adjustedLocalRotation.z,
+                    adjustedLocalRotation.w
+                );
+                adjustedLocalPosition.x = -adjustedLocalPosition.x;
+
+                // Calculate the new rotation
+                last.transform.rotation = penultimate.end.rotation * Quaternion.Inverse(adjustedLocalRotation);
+
+                // Calculate the new position
+                Vector3 offset = last.transform.rotation * adjustedLocalPosition;
+                last.transform.position = penultimate.end.position - offset;
+            }
+            else if(last.isFlipped && last.isReversed && last.connectionPoints.connectionType == ConnectionData.ConnectionType.Shift)
+            {
+                // Use last.end's local rotation and position
+                Quaternion adjustedLocalRotation = last.start.localRotation;
+                Vector3 adjustedLocalPosition = last.start.localPosition;
+
+                // Adjust for reversing first (rotate 180 degrees around Y-axis)
+                //adjustedLocalRotation *= Quaternion.Euler(0, 180f, 0);
 
                 // Adjust for flipping after reversing (negative scale on X-axis)
                 adjustedLocalRotation = new Quaternion(
@@ -477,7 +571,10 @@ namespace RCT
             //Select all the created objects.
             central.selection.UndoRedoReselection(blockList);
 
-            DeleteChain();
+            if (deleteOnSolidify.Value)
+            {
+                DeleteChain();
+            }
         }        
     }
 
