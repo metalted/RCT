@@ -258,14 +258,14 @@ namespace RCT
             //{ 2284, new BlockConnectionPoints( Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero) },
 
             //Folder 108-2
-            { 1607, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1608, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1611, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1612, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1978, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1980, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1982, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
-            { 1984, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
+            { 1607, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1608, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1611, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1612, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1978, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1980, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1982, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
+            { 1984, new BlockConnectionPoints( new Vector3(0,4f,0), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
 
             //Folder 108-3
             { 1986, new BlockConnectionPoints( new Vector3(0,8f,0), Vector3.zero, new Vector3(0,8f,0), Vector3.zero) },
@@ -484,7 +484,6 @@ namespace RCT
             { 1216, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,12f,56f), Vector3.zero) },
             { 1217, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,20f,56f), Vector3.zero) },
 
-
             //Folder 113
             { 1542, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,4f,0), Vector3.zero) },
             { 1557, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,4f,8f), Vector3.zero) },
@@ -492,13 +491,13 @@ namespace RCT
             { 1559, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-8f,4f,24f), Vector3.zero, ConnectionType.Shift) },
             { 1560, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-8f,4f,0f), new Vector3(0, -90f, 0), ConnectionType.Curve) },
             { 1561, new BlockConnectionPoints( new Vector3(0,4f,-4f), Vector3.zero, new Vector3(0,4f,4f), Vector3.zero) },
-            { 1562, new BlockConnectionPoints( new Vector3(0,4f,-6f), new Vector3(0,15f,0), new Vector3(0,4f,6f), new Vector3(0,-15f,0), ConnectionType.Curve) },
+            { 1562, new BlockConnectionPoints( new Vector3(0,4f,-6f), new Vector3(0,15f,0), new Vector3(0,4f,6f), new Vector3(0,-15f,0), ConnectionType.Shift) },
             { 1563, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,4f,8f), Vector3.zero) },
             { 1564, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-8f,4f,24f), Vector3.zero, ConnectionType.Shift) },
-            { 1565, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-0.8507652f,4f,1.724298f), new Vector3(0,-10f,0), ConnectionType.Curve) },
-            { 1566, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-1.362965f,4f,2.352763f), new Vector3(0,-15f,0), ConnectionType.Curve) },
-            { 1567, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-3.215391f,4f,4f), new Vector3(0,-30f,0), ConnectionType.Curve) },
-            { 1568, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-2.343145f,4f,-2.343145f), new Vector3(0,-45f,0), ConnectionType.Curve) },
+            { 1565, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-0.8507652f,4f,1.724298f), new Vector3(0,-10f,0), ConnectionType.Shift) },
+            { 1566, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-1.362965f,4f,2.352763f), new Vector3(0,-15f,0), ConnectionType.Shift) },
+            { 1567, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-3.215391f,4f,4f), new Vector3(0,-30f,0), ConnectionType.Shift) },
+            { 1568, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(-2.343145f,4f,-2.343145f), new Vector3(0,-45f,0), ConnectionType.Shift) },
             { 2251, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,0,40f), Vector3.zero) },
             { 2252, new BlockConnectionPoints( new Vector3(0,4f,-8f), Vector3.zero, new Vector3(0,8f,40f), Vector3.zero) },
 

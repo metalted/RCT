@@ -16,5 +16,6 @@ namespace RCT
 
         public bool isReversed = false;
         public bool isFlipped = false;
+        public float rotation = 0f;
     }
 }

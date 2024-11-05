@@ -31,7 +31,14 @@ namespace RCT
                     // If the component should not be kept, destroy it
                     if (!shouldKeep)
                     {
-                        GameObject.DestroyImmediate(component);
+                        if(component.GetType() == typeof(MeshCollider))
+                        {
+                            ((MeshCollider)component).enabled = false;
+                        }
+                        else
+                        {
+                            GameObject.DestroyImmediate(component);
+                        }                        
                     }
                 }
             }

@@ -12,7 +12,7 @@ namespace RCT
     {
         public const string pluginGUID = "com.metalted.zeepkist.rct";
         public const string pluginName = "RCT";
-        public const string pluginVersion = "1.3";
+        public const string pluginVersion = "1.4";
         public LEV_LevelEditorCentral central;
 
         public static Plugin Instance;
@@ -34,6 +34,8 @@ namespace RCT
         public ConfigEntry<KeyCode> undoButton;
         public ConfigEntry<KeyCode> flipButton;
         public ConfigEntry<KeyCode> reverseButton;
+        public ConfigEntry<KeyCode> resetRotationButton;
+
         public ConfigEntry<int> rctBlockID;
         public ConfigEntry<bool> visualizeConnectPoints;
         public ConfigEntry<bool> deleteOnSolidify;
@@ -52,6 +54,7 @@ namespace RCT
             undoButton = Config.Bind("Controls", "Undo", KeyCode.None, "Remove the last placed rct block from the design.");
             flipButton = Config.Bind("Controls", "Flip", KeyCode.None, "Flip the last rct block connected.");
             reverseButton = Config.Bind("Controls", "Reverse", KeyCode.None, "Reverse the last rct block connected.");
+            resetRotationButton = Config.Bind("Controls", "Reset Rotation", KeyCode.None, "Reset the rotation of the last rct block connected.");
 
             //Preferences
             rctBlockID = Config.Bind("Preferences", "RCT Block ID", 69, "The block that will be used to configure the start position and rotation of the chain.");
@@ -99,6 +102,11 @@ namespace RCT
                 {
                     ReverseLastBlock();
                 }
+
+                if(Input.GetKeyDown(resetRotationButton.Value))
+                {
+                    ResetRotationLastBlock();
+                }
             }
         }
 
@@ -139,6 +147,18 @@ namespace RCT
             if (GUILayout.Button("Reverse" + (reverseButton.Value != KeyCode.None ? (" (" + reverseButton.Value.ToString() + ")") : "")))
             {
                 ReverseLastBlock();
+            }
+
+            if (GUILayout.Button("Reset Rotation" + (resetRotationButton.Value != KeyCode.None ? (" (" + resetRotationButton.Value.ToString() + ")") : "")))
+            {
+                ResetRotationLastBlock();
+            }
+
+            if (blockChain.Count > 1)
+            {
+                RCTBlock last = GetLastBlock();
+                float normalizedRotation = (last.rotation % 360 + 360) % 360;
+                GUILayout.Label("Rotation: " + normalizedRotation.ToString("F3"));
             }
 
             GUILayout.EndVertical();
@@ -192,12 +212,26 @@ namespace RCT
                 }
                 else
                 {
-                    PlayerManager.Instance.messenger.Log("Select the configured RCT Block and press [" + ((KeyCode)rctButton.Value).ToString() + "] to enable RCT mode!", 3f);
+                    string blockName = "Error";
+                    try
+                    {
+                        blockName = PlayerManager.Instance.loader.globalBlockList.blocks[rctBlockID.Value].name;
+                    }
+                    catch { }
+
+                    PlayerManager.Instance.messenger.Log("To enable RCT Mode: \n(1) Deselect all. \n(2) Select block [ID: " + rctBlockID.Value + " | Name: " + blockName + "]. \n(3) Press [" + ((KeyCode)rctButton.Value).ToString() + "]", 8f);
                 }
             }
             else
             {
-                PlayerManager.Instance.messenger.Log("Select the configured RCT Block and press [" + ((KeyCode)rctButton.Value).ToString() + "] to enable RCT mode!", 3f);
+                string blockName = "Error";
+                try
+                {
+                    blockName = PlayerManager.Instance.loader.globalBlockList.blocks[rctBlockID.Value].name;
+                }
+                catch { }
+
+                PlayerManager.Instance.messenger.Log("To enable RCT Mode: \n(1) Deselect all. \n(2) Select block [ID: " + rctBlockID.Value + " | Name: " + blockName + "]. \n(3) Press [" + ((KeyCode)rctButton.Value).ToString() + "]", 8f);
             }
         }
 
@@ -283,6 +317,11 @@ namespace RCT
             rct.connectionPoints = connections;
 
             GameObject start = visualizeConnectPoints.Value ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("Start");
+            Collider startCollider = start.GetComponent<Collider>();
+            if(startCollider != null)
+            {
+                GameObject.Destroy(startCollider);
+            }            
             start.transform.parent = block.transform;
             start.transform.localPosition = connections.localStartPosition;
             start.transform.localEulerAngles = connections.localStartEuler;
@@ -290,6 +329,11 @@ namespace RCT
             rct.start = start.transform;
 
             GameObject end = visualizeConnectPoints.Value ? GameObject.CreatePrimitive(PrimitiveType.Cube) : new GameObject("End");
+            Collider endCollider = end.GetComponent<Collider>();
+            if (endCollider != null)
+            {
+                GameObject.Destroy(endCollider);
+            }
             end.transform.parent = block.transform;
             end.transform.localPosition = connections.localEndPosition;
             end.transform.localEulerAngles = connections.localEndEuler;
@@ -367,7 +411,9 @@ namespace RCT
                 //Adjust position
                 Vector3 offset = last.transform.rotation * last.start.localPosition;
                 last.transform.localPosition = penultimate.end.position - offset;
-            }            
+            }
+
+            last.rotation = 0f;
         }
 
         public RCTBlock GetLastBlock()
@@ -426,6 +472,7 @@ namespace RCT
             }
 
             last.transform.RotateAround(penultimate.end.position, penultimate.end.forward, angle);
+            last.rotation += angle;
         }
 
         public void FlipLastBlock()
@@ -483,6 +530,28 @@ namespace RCT
             last.isReversed = !last.isReversed;
 
             AlignLastBlock();
+        }
+
+        public void ResetRotationLastBlock()
+        {
+            if (blockChain.Count == 1)
+            {
+                PlayerManager.Instance.messenger.Log("Can't reset rotation of first object in chain.", 2f);
+                return;
+            }
+
+            RCTBlock last = GetLastBlock();
+            RCTBlock penultimate = GetPenultimateBlock();
+
+            if (last == null || penultimate == null)
+            {
+                Debug.LogError("Trying to reset rotation of last block but last or penultimate is null!");
+                return;
+            }
+
+            float currentRotation = last.rotation;
+            RotateLastBlock(-currentRotation);
+            last.rotation = 0;
         }
 
         public void Undo()
