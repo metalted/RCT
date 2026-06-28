@@ -6,268 +6,160 @@ using System.Threading.Tasks;
 using UnityEngine;
 using ZeepSDK;
 using ZeepSDK.LevelEditor;
+using Toolkist;
 
 namespace RCT
 {
-    public static class RCTManager
+    public enum Scene { Editor, Other };
+
+    public class RCTManager
     {
-        private static LEV_LevelEditorCentral mCentral;
+        public Scene CurrentScene;
+        public LEV_LevelEditorCentral central = null;
 
-        //RCT
-        private static Material mRCTMaterial;
-        private static bool mRCTModeEnabled = false;
-        private static Vector3 mStartingPosition = Vector3.zero;
-        private static Quaternion mStartingRotation = Quaternion.identity;
-        private static List<RCTBlock> mBlockChain = new List<RCTBlock>();
+        public bool rctModeActive = false;
+        public bool chainStarted = false;
+        private Vector3 startingPosition = Vector3.zero;
+        private Quaternion startingRotation = Quaternion.identity;
+        private List<RCTBlock> blockChain = new List<RCTBlock>();
+        private Material rctMaterial;
 
-        //The window rect for UIConfigurator.
-        public static RectTransform mRCTWindow;
-        public static Rect mRCTWindowRect;
-        
-        //Mouse in rect
-        private static bool mouseInRect;
-        private static object mLock = new object();
+        public int CurrentChainLength => blockChain.Count;
 
-        public static void Initialize()
+        public RCTManager()
         {
-
+            CurrentScene = Scene.Other;
+            LevelEditorApi.ExitedLevelEditor += ExitedLevelEditor;
         }
 
-        public static bool IsEnabled()
+        public void Dispose()
         {
-            return mRCTModeEnabled;
+            LevelEditorApi.ExitedLevelEditor -= ExitedLevelEditor;
         }
 
-        public static void DoUpdate()
+        public void OnUpdate()
         {
-            if (mCentral == null)
+            if(central == null)
             {
                 return;
             }
 
-            HandleKeyboardInput();
-
-            if (mRCTWindowRect.Contains(Event.current.mousePosition))
-            {
-                if (!mouseInRect)
-                {
-                    mouseInRect = true;
-                    DoMouseBlock(true);
-                }
-            }
-            else
-            {
-                if (mouseInRect)
-                {
-                    mouseInRect = false;
-                    DoMouseBlock(false);
-                }
-            }
+            HandleInputs();
         }
 
-        public static void DoMouseBlock(bool state)
+        public void HandleInputs()
         {
-            if (state)
-            {
-                LevelEditorApi.BlockMouseInput(mLock);
-            }
-            else
-            {
-                LevelEditorApi.UnblockMouseInput(mLock);
-            }
-        }
-
-        private static void HandleKeyboardInput()
-        {
-            if (Input.GetKeyDown(Plugin.Instance.rctButton.Value))
-            {
-                ToggleRCTMode();
-            }
-
-            if (mRCTModeEnabled)
+            if(rctModeActive && chainStarted)
             {
                 RotateLastBlockWithScroll();
 
-                if (Input.GetKeyDown(Plugin.Instance.deleteChainButton.Value))
-                {
-                    DeleteChain();
-                }
-
-                if (Input.GetKeyDown(Plugin.Instance.solidifyChainButton.Value))
-                {
-                    SolidifyChain();
-                }
-
-                if (Input.GetKeyDown(Plugin.Instance.undoButton.Value))
+                if(CurrentChainLength > 0 && Input.GetKeyDown(Plugin.Instance.undoButton.Value))
                 {
                     Undo();
                 }
 
-                if (Input.GetKeyDown(Plugin.Instance.flipButton.Value))
+                if(CurrentChainLength > 1)
                 {
-                    FlipLastBlock();
-                }
+                    if(Input.GetKeyDown(Plugin.Instance.flipButton.Value))
+                    {
+                        Flip();
+                    }
 
-                if (Input.GetKeyDown(Plugin.Instance.reverseButton.Value))
-                {
-                    ReverseLastBlock();
-                }
-
-                if (Input.GetKeyDown(Plugin.Instance.resetRotationButton.Value))
-                {
-                    ResetRotationLastBlock();
+                    if(Input.GetKeyDown(Plugin.Instance.reverseButton.Value))
+                    {
+                        Reverse();
+                    }
                 }
             }
         }
 
-        public static void DoGUI()
+        public void StartNewChain(BlockProperties startingBlock)
         {
-            if (mRCTModeEnabled)
+            if (startingBlock == null)
             {
-                // Calculate the actual Rect in screen space
-                Vector2 screenMin = RectTransformUtility.WorldToScreenPoint(null, mRCTWindow.TransformPoint(mRCTWindow.rect.min));
-                Vector2 screenMax = RectTransformUtility.WorldToScreenPoint(null, mRCTWindow.TransformPoint(mRCTWindow.rect.max));
+                return;
+            }
 
-                // Convert screen space to GUI space
-                float guiYMin = Screen.height - screenMax.y;
-                float guiYMax = Screen.height - screenMin.y;
-                mRCTWindowRect = new Rect(screenMin.x, guiYMin, screenMax.x - screenMin.x, guiYMax - guiYMin);
+            startingPosition = startingBlock.transform.position;
+            startingRotation = startingBlock.transform.rotation;
 
-                // Draw the main box
-                GUI.Box(mRCTWindowRect, "", GUIStyleX.windowBody);
+            chainStarted = true;
+            rctModeActive = true;
 
-                // Calculate positions within the box relative to its RectTransform                
-                float buttonHeight = 25f;
-                float padding = 5f;
-                float buttonWidth = mRCTWindowRect.width - padding * 2;
+            EditorOperations.DeselectAllBlocks(central);
+        }
 
-                // Starting x and y positions for elements within the box
-                float startX = mRCTWindowRect.x;
-                float startY = mRCTWindowRect.y; // Move down for title
+        public void ClearAll()
+        {
+            chainStarted = false;
+            rctModeActive = false;
+            startingPosition = Vector3.zero;
+            startingRotation = Quaternion.identity;
 
-                // Title position (spanning full width)
-                Rect titleRect = new Rect(mRCTWindowRect.x, mRCTWindowRect.y, mRCTWindowRect.width, buttonHeight);
-                GUI.Box(titleRect, "RCT Mode", GUIStyleX.windowHeader);
-
-                if(GUI.Button(new Rect(mRCTWindowRect.x + mRCTWindowRect.width - buttonHeight, mRCTWindowRect.y, buttonHeight, buttonHeight), "X", GUIStyleX.windowCloseButton))
+            foreach(RCTBlock b in blockChain)
+            {
+                if(b != null)
                 {
-                    ToggleRCTMode();
+                    if(b.gameObject != null)
+                    {
+                        GameObject.Destroy(b.gameObject);
+                    }
                 }
+            }
 
-                startY += buttonHeight + padding;
-                startX += padding;
+            blockChain.Clear();
+        }
 
-                string deleteChainText = "Delete Chain" + (Plugin.Instance.deleteChainButton.Value != KeyCode.None ? (" (" + Plugin.Instance.deleteChainButton.Value.ToString() + ")") : "");
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), deleteChainText, GUIStyleX.windowButton))
+        public void WindowClosed()
+        {
+            rctModeActive = false;
+
+            foreach (RCTBlock block in blockChain)
+            {
+                if (block != null && block.gameObject != null)
                 {
-                    DeleteChain();
-                }
-
-                startY += buttonHeight + padding;
-
-                string solidifyChainText = "Solidify Chain" + (Plugin.Instance.solidifyChainButton.Value != KeyCode.None ? (" (" + Plugin.Instance.solidifyChainButton.Value.ToString() + ")") : "");
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), solidifyChainText, GUIStyleX.windowButton))
-                {
-                    SolidifyChain();
-                }
-
-                startY += buttonHeight + padding;
-
-                string undoText = "Undo" + (Plugin.Instance.undoButton.Value != KeyCode.None ? (" (" + Plugin.Instance.undoButton.Value.ToString() + ")") : "");
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), undoText, GUIStyleX.windowButton))
-                {
-                    Undo();
-                }
-
-                startY += buttonHeight + padding;
-
-                string flipText = "Flip" + (Plugin.Instance.flipButton.Value != KeyCode.None ? (" (" + Plugin.Instance.flipButton.Value.ToString() + ")") : "");
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), flipText, GUIStyleX.windowButton))
-                {
-                    FlipLastBlock();
-                }
-
-                startY += buttonHeight + padding;
-
-                string reverseText = "Reverse" + (Plugin.Instance.reverseButton.Value != KeyCode.None ? (" (" + Plugin.Instance.reverseButton.Value.ToString() + ")") : "");
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), reverseText, GUIStyleX.windowButton))
-                {
-                    ReverseLastBlock();
-                }
-
-                startY += buttonHeight + padding;
-
-                string resetRotationText = "Reset Rotation" + (Plugin.Instance.resetRotationButton.Value != KeyCode.None ? (" (" + Plugin.Instance.resetRotationButton.Value.ToString() + ")") : "");
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), resetRotationText, GUIStyleX.windowButton))
-                {
-                    ResetRotationLastBlock();
-                }
-
-                startY += buttonHeight + padding;
-
-                if (mBlockChain.Count > 1)
-                {
-                    RCTBlock last = GetLastBlock();
-                    float normalizedRotation = (last.rotation % 360 + 360) % 360;
-
-                    GUI.Box(new Rect(startX, startY, buttonWidth, buttonHeight), "Rotation", GUIStyleX.windowButton);
-                    startY += buttonHeight;
-                    GUI.Box(new Rect(startX, startY, buttonWidth, buttonHeight), normalizedRotation.ToString("F3") + "°", GUIStyleX.windowTimeLabel);
+                    block.gameObject.SetActive(false);
                 }
             }
         }
 
-        #region Events
-        public static void OnLevelEditor(LEV_LevelEditorCentral central)
+        public void WindowOpened()
         {
-            mCentral = central;
-            mRCTMaterial = MaterialManager.AllMaterials[100].material;
-            mRCTModeEnabled = false;
-            mBlockChain.Clear();
+            rctModeActive = chainStarted;
 
-            /*Set up the window*/
-            // Find the Canvas in the hierarchy of LEV_LevelEditorCentral
-            RectTransform canvasRectTransform = central.transform.Find("Canvas").GetComponent<RectTransform>();
-
-            // Create a new GameObject that will act as the window you want to position
-            GameObject newWindow = new GameObject("RCTWindow", typeof(RectTransform));
-
-            // Set the new GameObject's parent to be the canvas.
-            newWindow.transform.SetParent(canvasRectTransform, false);
-            //Make it appear on top.
-            newWindow.transform.SetAsFirstSibling();
-
-            // Get the RectTransform component of the new GameObject
-            RectTransform pmWindowRectTransform = newWindow.GetComponent<RectTransform>();
-
-            // Optionally, set the RectTransform's properties to desired values
-            pmWindowRectTransform.anchorMin = new Vector2(0.5f, 0.5f); // Center anchor
-            pmWindowRectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            pmWindowRectTransform.pivot = new Vector2(0.5f, 0.5f);
-            pmWindowRectTransform.anchoredPosition = Vector2.zero; // Center position
-            pmWindowRectTransform.sizeDelta = new Vector2(200, 270); // Width and height
-
-            // Save the RectTransform.
-            mRCTWindow = pmWindowRectTransform;
-            //Add it to the configurator.
-            ZeepSDK.UI.UIApi.AddToConfigurator(mRCTWindow);
+            foreach (RCTBlock block in blockChain)
+            {
+                if (block != null && block.gameObject != null)
+                {
+                    block.gameObject.SetActive(true);
+                }
+            }
         }
 
-        public static void OnNotLevelEditor()
+        public void EnteredLevelEditor(LEV_LevelEditorCentral central)
         {
-            mCentral = null;
-            mRCTModeEnabled = false;
-            mBlockChain.Clear();
-            mouseInRect = false;
-            DoMouseBlock(false);
+            CurrentScene = Scene.Editor;
+            this.central = central;
+            rctMaterial = MaterialManager.AllMaterials[100].material;
         }
 
-        public static void BlockSelectedInBlockGUI(int blockID)
+        public void ExitedLevelEditor()
         {
-            //Check if block is supported.
+            CurrentScene = Scene.Other;
+            Plugin.Instance.UIHandler.CloseWindowAndCleanup();
+            central = null;
+        }
+
+        public void BlockSelectedInBlockGUI(int blockID)
+        {
+            if (!chainStarted || !rctModeActive)
+            {
+                return;
+            }
+
             if (!ConnectionData.Supports(blockID))
             {
-                PlayerManager.Instance.messenger.Log("Block not supported by RCT.", 1f);
+                Plugin.Instance.LogScreenMessage("Block " + blockID + " not supported by RCT.", 1.5f);
                 return;
             }
 
@@ -277,121 +169,21 @@ namespace RCT
                 return;
             }
 
-            mBlockChain.Add(block);
+            blockChain.Add(block);
 
-            if (mBlockChain.Count == 1)
+            if (blockChain.Count == 1)
             {
-                GetLastBlock().transform.position = mStartingPosition;
-                GetLastBlock().transform.rotation = mStartingRotation;
-            }
-
-            if (mBlockChain.Count > 1)
-            {
-                //AlignTube(blockChain[blockChain.Count - 2].end, blockChain[blockChain.Count - 1].transform, blockChain[blockChain.Count - 1].start);
-                AlignLastBlock();
-            }
-        }
-        #endregion
-
-        #region RCT
-        private static void ToggleRCTMode()
-        {
-            //If its enabled, turn it off.
-            if (mRCTModeEnabled)
-            {
-                mRCTModeEnabled = false;
-
-                //Hide all parts of the blockchain.
-                if (mBlockChain.Count > 0)
-                {
-                    foreach (RCTBlock b in mBlockChain)
-                    {
-                        b.gameObject.SetActive(false);
-                    }
-                }
-
-                PlayerManager.Instance.messenger.Log("RCT: Off", 1f);
-                return;
-            }
-
-            //If rct is off, but the blockchain still contains blocks:
-            if (mBlockChain.Count > 0)
-            {
-                mRCTModeEnabled = true;
-
-                //Turn on the block chain.
-                foreach (RCTBlock b in mBlockChain)
-                {
-                    b.gameObject.SetActive(true);
-                }
-
-                PlayerManager.Instance.messenger.Log("RCT: On", 1f);
-                mCentral.selection.DeselectAllBlocks(false, "");
-                return;
-            }
-
-            //If the block chain is empty, and one block is selected (current requirement for RCT)
-            if (mCentral.selection.list.Count == 1)
-            {
-                if (mCentral.selection.list[0].blockID == Plugin.Instance.rctBlockID.Value)
-                {
-                    mRCTModeEnabled = true;
-                    mStartingPosition = mCentral.selection.list[0].transform.position;
-                    mStartingRotation = mCentral.selection.list[0].transform.rotation;
-
-                    PlayerManager.Instance.messenger.Log("RCT: On", 1f);
-                    mCentral.selection.DeselectAllBlocks(false, "");
-                }
-
-                //Show a message on screen on how to enable RCT.
-                else
-                {
-                    string blockName = "Error";
-                    try
-                    {
-                        blockName = PlayerManager.Instance.loader.globalBlockList.blocks[Plugin.Instance.rctBlockID.Value].name;
-                    }
-                    catch { }
-
-                    PlayerManager.Instance.messenger.Log("To enable RCT Mode: \n(1) Deselect all. \n(2) Select block [ID: " + Plugin.Instance.rctBlockID.Value + " | Name: " + blockName + "]. \n(3) Press [" + ((KeyCode)Plugin.Instance.rctButton.Value).ToString() + "]", 8f);
-                }
+                RCTBlock last = GetLastBlock();
+                last.transform.position = startingPosition;
+                last.transform.rotation = startingRotation;
             }
             else
             {
-                string blockName = "Error";
-                try
-                {
-                    blockName = PlayerManager.Instance.loader.globalBlockList.blocks[Plugin.Instance.rctBlockID.Value].name;
-                }
-                catch { }
-
-                PlayerManager.Instance.messenger.Log("To enable RCT Mode: \n(1) Deselect all. \n(2) Select block [ID: " + Plugin.Instance.rctBlockID.Value + " | Name: " + blockName + "]. \n(3) Press [" + ((KeyCode)Plugin.Instance.rctButton.Value).ToString() + "]", 8f);
+                AlignLastBlock();
             }
         }
 
-        private static RCTBlock GetLastBlock()
-        {
-            if (mBlockChain.Count > 0)
-            {
-                return mBlockChain[mBlockChain.Count - 1];
-            }
-
-            return null;
-        }
-
-        private static RCTBlock GetPenultimateBlock()
-        {
-            if (mBlockChain.Count > 1)
-            {
-                return mBlockChain[mBlockChain.Count - 2];
-            }
-
-            return null;
-        }
-        #endregion
-
-        #region RCT Actions
-        private static RCTBlock CreateRCTBlock(int id)
+        private RCTBlock CreateRCTBlock(int id)
         {
             BlockConnectionPoints connections = ConnectionData.GetBlockConnectionPoints(id);
             if (!connections.valid)
@@ -400,29 +192,7 @@ namespace RCT
                 return null;
             }
 
-            //Create the block.
-            BlockProperties blockProperties = UnityEngine.Object.Instantiate<BlockProperties>(PlayerManager.Instance.loader.globalBlockList.blocks[id]);
-            blockProperties.CreateBlock();
-            for (int index = 0; index < blockProperties.propertyScripts.Count; ++index)
-            {
-                blockProperties.propertyScripts[index].CreateBlock(blockProperties);
-            }
-
-            //Set all objects to the rct material
-            Properties_RoadPainter component = blockProperties.gameObject.GetComponent<Properties_RoadPainter>();
-            foreach (MeshRenderer ren in component.renderers)
-            {
-                Material[] sharedMaterials = ren.sharedMaterials;
-                for (int i = 0; i < sharedMaterials.Length; ++i)
-                {
-                    sharedMaterials[i] = mRCTMaterial;
-                }
-                ren.sharedMaterials = sharedMaterials;
-            }
-
-            GameObject block = blockProperties.gameObject;
-
-            Utils.RemoveUnwantedComponents(block);
+            GameObject block = EditorOperations.CreateGhostBlock(central, id, rctMaterial);
             RCTBlock rct = block.AddComponent<RCTBlock>();
             rct.blockID = id;
             rct.connectionPoints = connections;
@@ -451,10 +221,12 @@ namespace RCT
             end.gameObject.name = "End";
             rct.end = end.transform;
 
+            GameObject.DontDestroyOnLoad(rct.gameObject);
+
             return rct;
         }
 
-        private static void AlignLastBlock()
+        private void AlignLastBlock()
         {
             RCTBlock last = GetLastBlock();
             RCTBlock penultimate = GetPenultimateBlock();
@@ -526,8 +298,7 @@ namespace RCT
 
             last.rotation = 0f;
         }
-
-        private static void RotateLastBlockWithScroll()
+        private void RotateLastBlockWithScroll()
         {
             float scrollValue = Input.mouseScrollDelta.y;
             if (scrollValue == 0)
@@ -535,23 +306,21 @@ namespace RCT
                 return;
             }
 
-            if (!mCentral.cam.IsCursorInGameView())
+            if (!central.cam.IsCursorInGameView())
             {
                 return;
             }
 
-            RCTBlock last = GetLastBlock();
-
-            if (last == null)
+            if (blockChain.Count < 2)
             {
                 return;
             }
 
-            float rotationValue = mCentral.gizmos.list_gridR[mCentral.gizmos.index_gridR] * Mathf.Sign(scrollValue);
+            float rotationValue = central.gizmos.list_gridR[central.gizmos.index_gridR] * Mathf.Sign(scrollValue);
             RotateLastBlock(rotationValue);
         }
 
-        private static void RotateLastBlock(float angle)
+        private void RotateLastBlock(float angle)
         {
             RCTBlock last = GetLastBlock();
             RCTBlock penultimate = GetPenultimateBlock();
@@ -565,12 +334,11 @@ namespace RCT
             last.transform.RotateAround(penultimate.end.position, penultimate.end.forward, angle);
             last.rotation += angle;
         }
-
-        private static void FlipLastBlock()
+        public void Flip()
         {
-            if (mBlockChain.Count == 1)
+            if (blockChain.Count == 1)
             {
-                PlayerManager.Instance.messenger.Log("Can't flip first object in chain.", 2f);
+                Plugin.Instance.LogScreenMessage("Can't flip first object in chain.", 2f);
                 return;
             }
 
@@ -591,10 +359,9 @@ namespace RCT
 
             AlignLastBlock();
         }
-
-        private static void ReverseLastBlock()
+        public void Reverse()
         {
-            if (mBlockChain.Count == 1)
+            if (blockChain.Count == 1)
             {
                 PlayerManager.Instance.messenger.Log("Can't reverse first object in chain.", 2f);
                 return;
@@ -622,10 +389,9 @@ namespace RCT
 
             AlignLastBlock();
         }
-
-        private static void ResetRotationLastBlock()
+        public void ResetRotation()
         {
-            if (mBlockChain.Count == 1)
+            if (blockChain.Count == 1)
             {
                 PlayerManager.Instance.messenger.Log("Can't reset rotation of first object in chain.", 2f);
                 return;
@@ -644,8 +410,7 @@ namespace RCT
             RotateLastBlock(-currentRotation);
             last.rotation = 0;
         }
-
-        private static void Undo()
+        public void Undo()
         {
             RCTBlock last = GetLastBlock();
 
@@ -656,86 +421,64 @@ namespace RCT
             }
 
             //Destroy and remove
-            GameObject.Destroy(mBlockChain[mBlockChain.Count - 1].gameObject);
-            mBlockChain.RemoveAt(mBlockChain.Count - 1);
+            GameObject.Destroy(blockChain[blockChain.Count - 1].gameObject);
+            blockChain.RemoveAt(blockChain.Count - 1);
         }
-
-        private static void DeleteChain()
+        private RCTBlock GetLastBlock()
         {
-            foreach (RCTBlock b in mBlockChain)
+            if(blockChain.Count > 0)
             {
-                if (b.gameObject != null)
+                return blockChain[blockChain.Count - 1];
+            }
+
+            return null;
+        }
+        private RCTBlock GetPenultimateBlock()
+        {
+            if(blockChain.Count > 1)
+            {
+                return blockChain[blockChain.Count - 2];
+            }
+
+            return null;
+        }
+        public void DeleteChain()
+        {
+            foreach (RCTBlock b in blockChain)
+            {
+                if (b != null && b.gameObject != null)
                 {
                     GameObject.Destroy(b.gameObject);
                 }
             }
 
-            mBlockChain.Clear();
+            blockChain.Clear();
         }
-
-        private static void SolidifyChain()
+        public void SolidifyChain() 
         {
-            mCentral.selection.DeselectAllBlocks(true, "");
+            EditorOperations.DeselectAllBlocks(central);
 
-            if (mBlockChain.Count == 0)
+            if(blockChain.Count == 0)
             {
                 return;
             }
 
-            List<string> before = Enumerable.Repeat((string)null, mBlockChain.Count).ToList();
-
-            //Create a list of selections before the creation, which is empty.
-            List<string> beforeSelection = new List<string>();
-
-            //Stores the JSON strings of the blocks after creation.
-            List<string> after = new List<string>();
-            //Stores the selection after creation.
-            List<string> afterSelection = new List<string>();
-
-            //Stores the BlockProperties objects of the created blocks.
-            List<BlockProperties> blockList = new List<BlockProperties>();
-
-            foreach (RCTBlock block in mBlockChain)
+            List<BlockDescription> blocks = new List<BlockDescription>();
+            
+            foreach(RCTBlock rct in blockChain)
             {
-                //Create the actual block at this position and rotation
-                BlockProperties blockProperties = UnityEngine.Object.Instantiate<BlockProperties>(PlayerManager.Instance.loader.globalBlockList.blocks[block.blockID]);
-                blockProperties.isBeingCreated = true;
-                blockProperties.gameObject.name = PlayerManager.Instance.loader.globalBlockList.blocks[block.blockID].name;
-                blockProperties.UID = mCentral.manager.GenerateUniqueIDforBlocks(block.blockID.ToString());
-                blockProperties.isEditor = true;
-                blockProperties.CreateBlock();
-                for (int index = 0; index < blockProperties.propertyScripts.Count; ++index)
-                {
-                    blockProperties.propertyScripts[index].CreateBlock(blockProperties);
-                }
-
-                blockProperties.transform.position = block.transform.position;
-                blockProperties.transform.rotation = block.transform.rotation;
-                blockProperties.transform.localScale = block.transform.localScale;
-
-                after.Add(blockProperties.ConvertBlockToJSON_v15_string());
-                blockList.Add(blockProperties);
+                BlockDescription description = new BlockDescription(rct.blockID, rct.transform.position, rct.transform.rotation, rct.transform.localScale);
+                blocks.Add(description);
             }
 
-            afterSelection = mCentral.undoRedo.ConvertSelectionToStringList(blockList);
-
-            //Convert all the before and after data into a Change_Collection.
-            Change_Collection collection = mCentral.undoRedo.ConvertBeforeAndAfterListToCollection(
-                before, after,
-                blockList,
-                beforeSelection, afterSelection);
-
-            //Register the creation
-            mCentral.validation.BreakLock(collection, "Gizmo6");
-
-            //Select all the created objects.
-            mCentral.selection.UndoRedoReselection(blockList);
-
-            if (Plugin.Instance.deleteOnSolidify.Value)
-            {
-                DeleteChain();
-            }
+            EditorOperations.CreateFromDescriptions(central, blocks);
         }
-        #endregion
+
+        public string GetCurrentRotationText() 
+        {
+            RCTBlock last = GetLastBlock();
+            float normalizedRotation = (last.rotation % 360 + 360) % 360;
+            return normalizedRotation.ToString("F3") + "°";
+        }
     }
 }

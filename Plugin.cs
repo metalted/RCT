@@ -4,22 +4,22 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using BepInEx.Configuration;
+using ZeepSDK.UI;
 
 namespace RCT
 {      
     [BepInPlugin(pluginGUID, pluginName, pluginVersion)]
+    [BepInDependency("ZeepSDK", BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency("com.metalted.zeepkist.toolkist", BepInDependency.DependencyFlags.HardDependency)]
     public class Plugin : BaseUnityPlugin
     {
         public const string pluginGUID = "com.metalted.zeepkist.rct";
         public const string pluginName = "RCT";
-        public const string pluginVersion = "1.5";       
+        public const string pluginVersion = "2.0";       
 
         public static Plugin Instance;        
 
         //Settings
-        public ConfigEntry<KeyCode> rctButton;
-        public ConfigEntry<KeyCode> deleteChainButton;
-        public ConfigEntry<KeyCode> solidifyChainButton;
         public ConfigEntry<KeyCode> undoButton;
         public ConfigEntry<KeyCode> flipButton;
         public ConfigEntry<KeyCode> reverseButton;
@@ -27,42 +27,57 @@ namespace RCT
 
         public ConfigEntry<int> rctBlockID;
         public ConfigEntry<bool> visualizeConnectPoints;
-        public ConfigEntry<bool> deleteOnSolidify;
+
+        public RCTUIHandler UIHandler { get; private set; }
+        public RCTManager RCTManager { get; private set; }
+        private RCTToolbarDrawer _toolbarDrawer;
+        private RCTGUIDrawer _drawer;
+
+        private Color rctColor = new Color(0.294f, 0.047f, 0.659f);
 
         public void Awake()
         {
+            Instance = this;
+
             Harmony harmony = new Harmony(pluginGUID);
             harmony.PatchAll();
 
-            Instance = this;
-
-            //Controls
-            rctButton = Config.Bind("Controls", "Toggle RCT Mode", KeyCode.Keypad0, "Toggle RCT Mode, select a single block with the configured ID first.");
-            deleteChainButton = Config.Bind("Controls", "Delete Chain", KeyCode.None, "Delete all the RCT blocks in the chain, clearing the design. Deleting is final.");
-            solidifyChainButton = Config.Bind("Controls", "Solidify Chain", KeyCode.None, "Turns the design into actual blocks.");
-            undoButton = Config.Bind("Controls", "Undo", KeyCode.None, "Remove the last placed rct block from the design.");
-            flipButton = Config.Bind("Controls", "Flip", KeyCode.None, "Flip the last rct block connected.");
-            reverseButton = Config.Bind("Controls", "Reverse", KeyCode.None, "Reverse the last rct block connected.");
-            resetRotationButton = Config.Bind("Controls", "Reset Rotation", KeyCode.None, "Reset the rotation of the last rct block connected.");
-
             //Preferences
+            undoButton = Config.Bind("Controls", "Undo Button Shortcut", KeyCode.None, "Optional control to press the Undo button with a keyboard key.");
+            flipButton = Config.Bind("Controls", "Flip Button Shortcut", KeyCode.None, "Optional control to press the Flip button with a keyboard key.");
+            reverseButton = Config.Bind("Controls", "Reverse Button Shortcut", KeyCode.None, "Optional control to press the Reverse button with a keyboard key.");
+
             rctBlockID = Config.Bind("Preferences", "RCT Block ID", 69, "The block that will be used to configure the start position and rotation of the chain.");
             visualizeConnectPoints = Config.Bind("Preferences", "Show connection points", false, "Visualizes the connection points configured in the plugin. Mostly used for debugging purposes.");
-            deleteOnSolidify = Config.Bind("Preferences", "Delete on Solidify", false, "When solidifying a chain, also clear the design");
 
-            GUIStyleX.Initialize();
-            RCTManager.Initialize();
+            UIHandler = new RCTUIHandler();
+            RCTManager = new RCTManager();
+
+            _toolbarDrawer = new RCTToolbarDrawer(this, RCTManager, UIHandler);
+            UIApi.AddToolbarDrawer(_toolbarDrawer);
+            _drawer = new RCTGUIDrawer(this, RCTManager, UIHandler);
+            UIApi.AddZeepGUIDrawer(_drawer);
+
+            Logger.LogInfo($"Plugin {pluginName} is loaded!");
+        }
+
+        private void OnDestroy()
+        {
+            RCTManager?.Dispose();
+
+            UIApi.RemoveToolbarDrawer(_toolbarDrawer);
+            UIApi.RemoveZeepGUIDrawer(_drawer);
         }
 
         public void Update()
         {
-            RCTManager.DoUpdate();
+            RCTManager.OnUpdate();
         }
 
-        private void OnGUI()
+        public void LogScreenMessage(string msg, float time)
         {
-            RCTManager.DoGUI();
-        }   
+            PlayerManager.Instance.messenger.LogCustomColor(msg, time, Color.white, rctColor);
+        }
     }
 
     [HarmonyPatch(typeof(LEV_LevelEditorCentral), "Awake")]
@@ -70,7 +85,7 @@ namespace RCT
     {
         public static void Postfix(LEV_LevelEditorCentral __instance)
         {
-            RCTManager.OnLevelEditor(__instance);
+            Plugin.Instance.RCTManager.EnteredLevelEditor(__instance);
         }
     }
 
@@ -79,33 +94,15 @@ namespace RCT
     {
         public static bool Prefix(ref int blockID)
         {
-            if (RCTManager.IsEnabled())
+            if (Plugin.Instance.RCTManager.rctModeActive && Plugin.Instance.RCTManager.chainStarted)
             {
-                RCTManager.BlockSelectedInBlockGUI(blockID);
+                Plugin.Instance.RCTManager.BlockSelectedInBlockGUI(blockID);
                 return false;
             }
             else
             {
                 return true;
             }
-        }
-    }
-
-    [HarmonyPatch(typeof(MainMenuUI), "Awake")]
-    public class MainMenuUIAwakePatch
-    {
-        public static void Postfix()
-        {
-            RCTManager.OnNotLevelEditor();
-        }
-    }
-
-    [HarmonyPatch(typeof(SetupGame), "Awake")]
-    public class SetupGameAwakePatch
-    {
-        public static void Postfix()
-        {
-            RCTManager.OnNotLevelEditor();
         }
     }
 }

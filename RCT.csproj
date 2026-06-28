@@ -4,7 +4,7 @@
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>RCT</AssemblyName>
     <Description>RCT</Description>
-    <Version>1.5</Version>
+    <Version>2.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
@@ -13,11 +13,17 @@
     <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
     <PackageReference Include="BepInEx.Core" Version="5.*" />
     <PackageReference Include="UnityEngine.Modules" Version="5.6.0" IncludeAssets="compile" />
-    <PackageReference Include="Zeepkist.GameLibs" Version="16.40.0" />
-    <PackageReference Include="ZeepSDK" Version="1.36.11" />
+    <PackageReference Include="Zeepkist.GameLibs" Version="18.999057.1981-beta" />
+    <PackageReference Include="ZeepSDK" Version="2.3.1" />
   </ItemGroup>
   
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Reference Include="Toolkist">
+      <HintPath>..\Toolkist\bin\Debug\net472\Toolkist.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
