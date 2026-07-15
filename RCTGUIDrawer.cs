@@ -1,6 +1,7 @@
 ﻿using Imui.Controls;
 using Imui.Core;
 using Toolkist;
+using Toolkist.EditorOperations;
 using ZeepSDK.UI;
 
 namespace RCT
@@ -29,7 +30,7 @@ namespace RCT
                 {
                     if(!_manager.chainStarted)
                     {
-                        if (_manager.central.selection.list.Count == 1 && _manager.central.selection.list[0].blockID == Plugin.Instance.rctBlockID.Value && !EditorOperations.IsInGMode(_manager.central))
+                        if (_manager.central.selection.list.Count == 1 && _manager.central.selection.list[0].blockID == Plugin.Instance.rctBlockID.Value && !EditorState.IsInGMode(_manager.central))
                         {
                             gui.BeginVertical();
                             if(gui.Button("Start Chain"))

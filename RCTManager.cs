@@ -7,6 +7,7 @@ using UnityEngine;
 using ZeepSDK;
 using ZeepSDK.LevelEditor;
 using Toolkist;
+using Toolkist.EditorOperations;
 
 namespace RCT
 {
@@ -86,7 +87,7 @@ namespace RCT
             chainStarted = true;
             rctModeActive = true;
 
-            EditorOperations.DeselectAllBlocks(central);
+            EditorSelectionOperations.DeselectAllBlocks(central);
         }
 
         public void ClearAll()
@@ -192,7 +193,7 @@ namespace RCT
                 return null;
             }
 
-            GameObject block = EditorOperations.CreateGhostBlock(central, id, rctMaterial);
+            GameObject block = EditorBlockFactory.CreateGhostBlock(central, id, rctMaterial);
             RCTBlock rct = block.AddComponent<RCTBlock>();
             rct.blockID = id;
             rct.connectionPoints = connections;
@@ -456,7 +457,7 @@ namespace RCT
         }
         public void SolidifyChain() 
         {
-            EditorOperations.DeselectAllBlocks(central);
+            EditorSelectionOperations.DeselectAllBlocks(central);
 
             if(blockChain.Count == 0)
             {
@@ -471,7 +472,7 @@ namespace RCT
                 blocks.Add(description);
             }
 
-            EditorOperations.CreateFromDescriptions(central, blocks);
+            EditorBlockFactory.CreateFromDescriptions(central, blocks);
         }
 
         public string GetCurrentRotationText() 
