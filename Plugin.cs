@@ -15,7 +15,7 @@ namespace RCT
     {
         public const string pluginGUID = "com.metalted.zeepkist.rct";
         public const string pluginName = "RCT";
-        public const string pluginVersion = "2.0";       
+        public const string pluginVersion = "2.1";       
 
         public static Plugin Instance;        
 
